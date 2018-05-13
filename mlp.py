@@ -18,7 +18,7 @@ import matplotlib.pyplot as plt
 IMAGE_WIDTH = 32
 IMAGE_HEIGHT = 32
 COLOR_CHANNELS = 3
-EPOCHS = 30
+EPOCHS = 300
 LEARNING_RATES = [0.0001, 0.001, 0.01, 0.1, 1]
 KEEP_RATES = [.5, .6, .7, .8, .9]
 
@@ -110,17 +110,19 @@ def main():
     trainset = torchvision.datasets.CIFAR10(root='./data', train=True,
                                             download=True, transform=transform)
     train_loader = torch.utils.data.DataLoader(trainset, batch_size=4,
-                                              shuffle=True, num_workers=2)
+                                              shuffle=True, num_workers=1, pin_memory=False)
 
     testset = torchvision.datasets.CIFAR10(root='./data', train=False,
                                            download=True, transform=transform)
     validation_loader = torch.utils.data.DataLoader(testset, batch_size=4,
-                                             shuffle=False, num_workers=2)
+                                             shuffle=False, num_workers=1, pin_memory=False)
 
     hidden_nodes = 100
     layers = 1
-    model = Net(hidden_nodes, layers, "sigmoid")
-    optimizer = torch.optim.SGD(model.parameters(), lr=LEARNING_RATES[0])
+    model = Net(hidden_nodes, layers, "sigmoid", keep_rate=KEEP_RATES[3])
+    if cuda:
+        model.cuda()
+    optimizer = torch.optim.SGD(model.parameters(), lr=LEARNING_RATES[2])
 
     loss_vector = []
     acc_vector = []
