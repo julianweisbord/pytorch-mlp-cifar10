@@ -28,10 +28,8 @@ TRAIN_BATCHS = ["data_batch_1", "data_batch_2", "data_batch_3", "data_batch_4"]
 TEST_BATCHES = ["data_batch_5"]
 CLASSES = ['plane', 'car', 'bird', 'cat', 'deer', 'dog', 'frog', 'horse', 'ship', 'truck']
 N_CLASSES = len(CLASSES)
+PLOT = False
 
-class Dataset():
-    def __init__(self, data_path=None):
-        pass
 
 
 class Net(torch.nn.Module):
@@ -39,7 +37,7 @@ class Net(torch.nn.Module):
         super(Net, self).__init__()
         self.n_hidden_nodes = n_hidden_nodes
         self.n_hidden_layers = n_hidden_layers
-        self.actiavation = activation
+        self.activation = activation
         if not keep_rate:
             keep_rate = 0.5
         self.keep_rate = keep_rate
@@ -48,7 +46,7 @@ class Net(torch.nn.Module):
                                    n_hidden_nodes)
         self.fc1_drop = torch.nn.Dropout(1 - keep_rate)
         if n_hidden_layers == 2:
-            self.fc2 = torch.nn.Linear(IMAGE_WIDTH * IMAGE_WIDTH * COLOR_CHANNELS,
+            self.fc2 = torch.nn.Linear(n_hidden_nodes,
                                        n_hidden_nodes)
             self.fc2_drop = torch.nn.Dropout(1 - keep_rate)
 
@@ -56,9 +54,18 @@ class Net(torch.nn.Module):
 
     def forward(self, x):
         x = x.view(-1, IMAGE_WIDTH * IMAGE_WIDTH * COLOR_CHANNELS)
-        sigmoid = torch.nn.Sigmoid()
-        x = sigmoid(self.fc1(x))
+        if self.activation == "sigmoid":
+            sigmoid = torch.nn.Sigmoid()
+            x = sigmoid(self.fc1(x))
+        elif self.activation == "relu":
+            x = torch.nn.functional.relu(self.fc1(x))
         x = self.fc1_drop(x)
+        if self.n_hidden_layers == 2:
+            if self.activation == "sigmoid":
+                x = sigmoid(self.fc2(x))
+            elif self.activation == "relu":
+                x = torch.nn.functional.relu(self.fc2(x))
+            x = self.fc2_drop(x)
         return torch.nn.functional.log_softmax(self.out(x))
 
 
@@ -119,21 +126,53 @@ def main():
 
     hidden_nodes = 100
     layers = 1
-    model = Net(hidden_nodes, layers, "sigmoid", keep_rate=KEEP_RATES[3])
-    if cuda:
-        model.cuda()
-    optimizer = torch.optim.SGD(model.parameters(), lr=LEARNING_RATES[2])
+    for i in range(1, len(LEARNING_RATES) + 1):
+        model = Net(hidden_nodes, layers, "sigmoid")
+        if cuda:
+            model.cuda()
+        optimizer = torch.optim.SGD(model.parameters(), lr=LEARNING_RATES[i-1])
 
-    loss_vector = []
-    acc_vector = []
-    for epoch in range(1, EPOCHS + 1):
-        train(epoch, model, train_loader, optimizer, cuda=cuda)
-        validate(loss_vector, acc_vector, model, validation_loader, cuda=cuda)
+        loss_vector = []
+        acc_vector = []
+        for epoch in range(1, EPOCHS + 1):
+            train(epoch, model, train_loader, optimizer, cuda=cuda)
+            validate(loss_vector, acc_vector, model, validation_loader, cuda=cuda)
+            if epoch == 10:
+                break
 
-
-    # Plot train loss and validation accuracy vs epochs for each learning rate
-
+        # Plot train loss and validation accuracy vs epochs for each learning rate
+        if PLOT:
+            epochs = [i for i in range(1, 11)]
+            plt.plot(epochs, acc_vector)
+            plt.plot(epochs, loss_vector)
+            plt.xlabel("Epochs")
+            plt.ylabel("Accuracy")
+            plt.show()
     # Repeat using RELU for activation
+
+    hidden_nodes = 100
+    layers = 1
+    for i in range(1, len(LEARNING_RATES) + 1):
+        model = Net(hidden_nodes, layers, "relu")
+        if cuda:
+            model.cuda()
+        optimizer = torch.optim.SGD(model.parameters(), lr=LEARNING_RATES[2])
+
+        loss_vector = []
+        acc_vector = []
+        for epoch in range(1, EPOCHS + 1):
+            train(epoch, model, train_loader, optimizer, cuda=cuda)
+            validate(loss_vector, acc_vector, model, validation_loader, cuda=cuda)
+            if epoch == 10:
+                break
+        # Plot train loss and validation accuracy vs epochs for each learning rate
+        if PLOT:
+            epochs = [i for i in range(1, 11)]
+            plt.plot(epochs, acc_vector)
+            plt.plot(epochs, loss_vector)
+            plt.xlabel("Epochs")
+            plt.ylabel("Accuracy")
+            plt.show()
 
 if __name__ == '__main__':
     main()
