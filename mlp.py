@@ -174,5 +174,64 @@ def main():
             plt.ylabel("Accuracy")
             plt.show()
 
+    # Experimenting w/ different parameters:
+
+    hidden_nodes = 100
+    layers = 1
+
+    model = Net(hidden_nodes, layers, "sigmoid", keep_rate=KEEP_RATES[3])
+    if cuda:
+        model.cuda()
+    optimizer = torch.optim.SGD(model.parameters(), lr=LEARNING_RATES[2])
+
+    loss_vector = []
+    acc_vector = []
+    for epoch in range(1, EPOCHS + 1):
+        train(epoch, model, train_loader, optimizer, cuda=cuda)
+        validate(loss_vector, acc_vector, model, validation_loader, cuda=cuda)
+        if epoch == 10:
+            break
+
+    # Plot train loss and validation accuracy vs epochs for each learning rate
+    if PLOT:
+        epochs = [i for i in range(1, 11)]
+        plt.plot(epochs, acc_vector)
+        plt.xlabel("Epochs")
+        plt.ylabel("Accuracy")
+        plt.show()
+
+
+
+    # 2 layers, 50 hidden nodes:
+    hidden_nodes = 50
+    layers = 2
+
+    model = Net(hidden_nodes, layers, "sigmoid")
+    if cuda:
+        model.cuda()
+    optimizer = torch.optim.SGD(model.parameters(), lr=LEARNING_RATES[2])
+
+    loss_vector = []
+    acc_vector = []
+    for epoch in range(1, EPOCHS + 1):
+        train(epoch, model, train_loader, optimizer, cuda=cuda)
+        validate(loss_vector, acc_vector, model, validation_loader, cuda=cuda)
+        if epoch == 40:
+            break
+
+    # Plot train loss and validation accuracy vs epochs for each learning rate
+    if PLOT:
+        epochs = [i for i in range(1, 41)]
+        plt.plot(epochs, acc_vector)
+
+        plt.xlabel("Epochs")
+        plt.ylabel("Accuracy")
+        plt.show()
+
+        plt.plot(epochs, loss_vector)
+        plt.xlabel("Epochs")
+        plt.ylabel("Loss")
+        plt.show()
+
 if __name__ == '__main__':
     main()
