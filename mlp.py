@@ -6,7 +6,7 @@ sources: https://github.com/CSCfi/machine-learning-scripts/blob/master/notebooks
 description: This is a Multilayer Perceptron image classifier trained on the
              CIFAR-10 data set.
 '''
-
+import time
 import numpy as np
 import torch
 import torchvision
@@ -19,9 +19,10 @@ IMAGE_WIDTH = 32
 IMAGE_HEIGHT = 32
 COLOR_CHANNELS = 3
 EPOCHS = 300
-LEARNING_RATES = [0.0001, 0.001, 0.01, 0.1, 1]
-KEEP_RATES = [.5, .6, .7, .8, .9]
-
+LEARNING_RATES = [.00001, 0.0001, 0.001, 0.01, 0.1]
+KEEP_RATES = [.5, .65, .8]
+MOMENTUM_RATES = [.25, .5, .75]
+WEIGHT_DECAY_RATES = [.0005, .005, .05]
 BATCH_SIZE = 32
 BATCH_IMAGE_COUNT = 10000
 TRAIN_BATCHS = ["data_batch_1", "data_batch_2", "data_batch_3", "data_batch_4"]
@@ -71,19 +72,24 @@ class Net(torch.nn.Module):
 
 def train(epoch, model, train_loader, optimizer, log_interval=100, cuda=None):
     model.train()
+    correct = 0
     for batch_idx, (data, target) in enumerate(train_loader):
         if cuda:
             data, target = data.cuda(), target.cuda()
         data, target = Variable(data), Variable(target)
         optimizer.zero_grad()
         output = model(data)
+
+        pred = output.data.max(1)[1] # get the index of the max log-probability
+        correct += pred.eq(target.data).cpu().sum()
+        accuracy = 100. * correct / len(train_loader.dataset)
         loss = torch.nn.functional.nll_loss(output, target)
         loss.backward()
         optimizer.step()
         if batch_idx % log_interval == 0:
-            print('Train Epoch: {} [{}/{} ({:.0f}%)]\tLoss: {:.6f}'.format(
+            print('Train Epoch: {} [{}/{} ({:.0f}%)]\tLoss: {:.6f} Accuracy: {}'.format(
                 epoch, batch_idx * len(data), len(train_loader.dataset),
-                100. * batch_idx / len(train_loader), loss.data[0]))
+                100. * batch_idx / len(train_loader), loss.data[0], accuracy))
 
 def validate(loss_vector, accuracy_vector, model, validation_loader, cuda=None):
     model.eval()
@@ -117,12 +123,12 @@ def main():
     trainset = torchvision.datasets.CIFAR10(root='./data', train=True,
                                             download=True, transform=transform)
     train_loader = torch.utils.data.DataLoader(trainset, batch_size=4,
-                                              shuffle=True, num_workers=1, pin_memory=False)
+                                              shuffle=True, num_workers=0, pin_memory=False)
 
     testset = torchvision.datasets.CIFAR10(root='./data', train=False,
                                            download=True, transform=transform)
     validation_loader = torch.utils.data.DataLoader(testset, batch_size=4,
-                                             shuffle=False, num_workers=1, pin_memory=False)
+                                             shuffle=False, num_workers=0, pin_memory=False)
 
     hidden_nodes = 100
     layers = 1
@@ -137,76 +143,97 @@ def main():
         for epoch in range(1, EPOCHS + 1):
             train(epoch, model, train_loader, optimizer, cuda=cuda)
             validate(loss_vector, acc_vector, model, validation_loader, cuda=cuda)
-            if epoch == 10:
+            if epoch == 25:
                 break
 
         # Plot train loss and validation accuracy vs epochs for each learning rate
         if PLOT:
-            epochs = [i for i in range(1, 11)]
+            epochs = [i for i in range(1, 26)]
             plt.plot(epochs, acc_vector)
+
+            plt.xlabel("Epochs")
+            plt.ylabel("Accuracy with Sigmoid")
+            plt.show()
+
             plt.plot(epochs, loss_vector)
             plt.xlabel("Epochs")
-            plt.ylabel("Accuracy")
+            plt.ylabel("Loss")
             plt.show()
+
     # Repeat using RELU for activation
 
     hidden_nodes = 100
     layers = 1
+    start_time = time.time()
     for i in range(1, len(LEARNING_RATES) + 1):
         model = Net(hidden_nodes, layers, "relu")
         if cuda:
             model.cuda()
-        optimizer = torch.optim.SGD(model.parameters(), lr=LEARNING_RATES[2])
+        optimizer = torch.optim.SGD(model.parameters(), lr=LEARNING_RATES[i])
 
         loss_vector = []
         acc_vector = []
         for epoch in range(1, EPOCHS + 1):
             train(epoch, model, train_loader, optimizer, cuda=cuda)
             validate(loss_vector, acc_vector, model, validation_loader, cuda=cuda)
-            if epoch == 10:
+            if epoch == 25:
                 break
+        end_time = time.time() - start_time
+        print("Total time", end_time)
         # Plot train loss and validation accuracy vs epochs for each learning rate
         if PLOT:
-            epochs = [i for i in range(1, 11)]
+            epochs = [i for i in range(1, 26)]
             plt.plot(epochs, acc_vector)
+            plt.xlabel("Epochs")
+            plt.ylabel("Accuracy with RELU")
+            plt.show()
+
             plt.plot(epochs, loss_vector)
             plt.xlabel("Epochs")
-            plt.ylabel("Accuracy")
+            plt.ylabel("Loss")
             plt.show()
 
     # Experimenting w/ different parameters:
 
     hidden_nodes = 100
     layers = 1
+    start_time = time.time()
+    for i in range(1, len(KEEP_RATES) + 1):
+        model = Net(hidden_nodes, layers, "relu", keep_rate=KEEP_RATES[i-1])
+        if cuda:
+            model.cuda()
+        optimizer = torch.optim.SGD(model.parameters(), lr=LEARNING_RATES[2], momentum=MOMENTUM_RATES[1], weight_decay=WEIGHT_DECAY_RATES[0])
 
-    model = Net(hidden_nodes, layers, "sigmoid", keep_rate=KEEP_RATES[3])
-    if cuda:
-        model.cuda()
-    optimizer = torch.optim.SGD(model.parameters(), lr=LEARNING_RATES[2])
+        loss_vector = []
+        acc_vector = []
+        for epoch in range(1, EPOCHS + 1):
+            train(epoch, model, train_loader, optimizer, cuda=cuda)
+            validate(loss_vector, acc_vector, model, validation_loader, cuda=cuda)
+            if epoch == 20:
+                break
+        end_time = time.time() - start_time
+        print("Total time", end_time)
+        # Plot train loss and validation accuracy vs epochs for each learning rate
+        if PLOT:
+            epochs = [i for i in range(1, 21)]
+            plt.plot(epochs, acc_vector)
+            plt.xlabel("Epochs")
+            plt.ylabel("Accuracy with RELU")
+            plt.show()
 
-    loss_vector = []
-    acc_vector = []
-    for epoch in range(1, EPOCHS + 1):
-        train(epoch, model, train_loader, optimizer, cuda=cuda)
-        validate(loss_vector, acc_vector, model, validation_loader, cuda=cuda)
-        if epoch == 10:
-            break
-
-    # Plot train loss and validation accuracy vs epochs for each learning rate
-    if PLOT:
-        epochs = [i for i in range(1, 11)]
-        plt.plot(epochs, acc_vector)
-        plt.xlabel("Epochs")
-        plt.ylabel("Accuracy")
-        plt.show()
+            plt.plot(epochs, loss_vector)
+            plt.xlabel("Epochs")
+            plt.ylabel("Loss")
+            plt.show()
 
 
 
     # 2 layers, 50 hidden nodes:
     hidden_nodes = 50
     layers = 2
+    start_time = time.time()
 
-    model = Net(hidden_nodes, layers, "sigmoid")
+    model = Net(hidden_nodes, layers, "relu", keep_rate=.8)
     if cuda:
         model.cuda()
     optimizer = torch.optim.SGD(model.parameters(), lr=LEARNING_RATES[2])
@@ -216,12 +243,14 @@ def main():
     for epoch in range(1, EPOCHS + 1):
         train(epoch, model, train_loader, optimizer, cuda=cuda)
         validate(loss_vector, acc_vector, model, validation_loader, cuda=cuda)
-        if epoch == 40:
+        if epoch == 30:
             break
+    end_time = time.time() - start_time
+    print("Total time", end_time)
 
     # Plot train loss and validation accuracy vs epochs for each learning rate
     if PLOT:
-        epochs = [i for i in range(1, 41)]
+        epochs = [i for i in range(1, 31)]
         plt.plot(epochs, acc_vector)
 
         plt.xlabel("Epochs")
